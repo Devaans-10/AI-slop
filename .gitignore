@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.venv/
+runs/
+data/raw/
+data/processed/
+
+# Ignore trainer checkpoints (large), but keep the small LoRA adapter for deployment.
+checkpoints/run1/trainer/
+
+# Ignore large model weights everywhere except the deployed adapter.
+*.bin
+*.safetensors
+
+# The LoRA adapter is small (a few MB) and is safe to deploy to a Space.
+!checkpoints/run1/adapter/
+!checkpoints/run1/adapter/*.bin
+!checkpoints/run1/adapter/*.safetensors
