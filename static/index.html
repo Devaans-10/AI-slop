@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Slop Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :root {
+    --bg: #f7f5f0;
+    --fg: #1a1a1a;
+    --card: #ffffff;
+    --border: #e5e0d8;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --muted: #6b6b6b;
+    --bg-muted: #f3f1ec;
+    --ai: #dc2626;
+    --ai-bg: #fef2f2;
+    --unsure: #d97706;
+    --unsure-bg: #fffbeb;
+    --human: #16a34a;
+    --human-bg: #f0fdf4;
+    --shadow: 0 10px 25px -5px rgba(0,0,0,0.06);
+    --ring: 0 0 0 3px rgba(37,99,235,0.2);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f0f;
+      --fg: #eaeaea;
+      --card: #1a1a1a;
+      --border: #333333;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --muted: #a1a1aa;
+      --bg-muted: #27272a;
+      --ai: #ef4444;
+      --ai-bg: #3f1313;
+      --unsure: #f59e0b;
+      --unsure-bg: #4d2a00;
+      --human: #22c55e;
+      --human-bg: #0f2d1a;
+      --shadow: 0 10px 25px -5px rgba(0,0,0,0.4);
+      --ring: 0 0 0 3px rgba(59,130,246,0.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f0f0f;
+    --fg: #eaeaea;
+    --card: #1a1a1a;
+    --border: #333333;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --muted: #a1a1aa;
+    --bg-muted: #27272a;
+    --ai: #ef4444;
+    --ai-bg: #3f1313;
+    --unsure: #f59e0b;
+    --unsure-bg: #4d2a00;
+    --human: #22c55e;
+    --human-bg: #0f2d1a;
+    --shadow: 0 10px 25px -5px rgba(0,0,0,0.4);
+    --ring: 0 0 0 3px rgba(59,130,246,0.25);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; white-space: nowrap; }
+
+  /* Layout */
+  .wrap { min-height: 100vh; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 24px;
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 420px;
+  }
+  .logo { font-weight: 700; font-size: 1.25rem; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .tagline { color: var(--muted); font-size: 0.875rem; margin-bottom: 24px; }
+
+  /* Login form */
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px; color: var(--fg); }
+  .form-group input {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--bg-muted); color: var(--fg);
+    font-size: 1rem; font-family: inherit;
+  }
+  .form-group input:focus { outline: var(--ring); border-color: transparent; }
+  .error-banner {
+    display: none; margin-bottom: 16px; padding: 10px 12px; border-radius: 10px;
+    background: var(--ai-bg); color: var(--ai); font-size: 0.875rem; border: 1px solid var(--ai);
+  }
+  .btn-primary {
+    width: 100%; padding: 12px; background: var(--accent); color: #fff;
+    border-radius: 10px; font-weight: 600; font-size: 1rem; min-height: 44px;
+  }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+  /* Checker screen */
+  .checker { max-width: 760px; width: 100%; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .header h1 { font-size: 1.1rem; font-weight: 600; }
+  .toolbar { display: flex; align-items: center; gap: 8px; }
+  .theme-toggle {
+    width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; min-height: 44px; min-width: 44px;
+  }
+  .btn-logout {
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px;
+    background: transparent; color: var(--fg); font-weight: 500; font-size: 0.875rem; min-height: 44px;
+  }
+  .btn-logout:hover { background: var(--bg-muted); }
+  .hero {
+    background: var(--bg-muted); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 20px;
+  }
+  .hero p { font-size: 0.95rem; color: var(--fg); margin-bottom: 12px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font-size: 0.8rem; padding: 6px 10px; border: 1px solid var(--border);
+    border-radius: 999px; background: var(--card); color: var(--fg); cursor: pointer; min-height: 44px;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .url-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .url-row input {
+    flex: 1; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--bg-muted); color: var(--fg); font-size: 1rem; min-height: 44px;
+  }
+  .url-row input:focus { outline: var(--ring); border-color: transparent; }
+  .url-row button {
+    padding: 14px 20px; background: var(--accent); color: #fff; border-radius: 12px;
+    font-weight: 600; font-size: 1rem; min-height: 44px;
+  }
+  .url-row button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .url-row button:hover:not(:disabled) { background: var(--accent-hover); }
+
+  /* Skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--bg-muted) 25%, rgba(255,255,255,0.04) 50%, var(--bg-muted) 75%);
+    background-size: 200% 100%;
+    border: 1px dashed var(--border); border-radius: 8px; height: 320px;
+    display: flex; align-items: center; justify-content: center; color: var(--muted);
+    font-size: 0.9rem; animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+  /* Error banner */
+  .error-banner.shown { display: block; }
+
+  /* Results */
+  .results { display: flex; flex-direction: column; gap: 16px; }
+  .summary-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; position: relative;
+  }
+  .score-ring-wrap { display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  svg.score-svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+  circle.track { fill: none; stroke: var(--border); stroke-width: 10; }
+  circle.progress {
+    fill: none; stroke-width: 10; stroke-linecap: round;
+    stroke: var(--accent); stroke-dasharray: 283; stroke-dashoffset: 283;
+    transition: stroke-dashoffset 0.8s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    circle.progress { transition: none; }
+  }
+  .score-text { position: absolute; text-align: center; }
+  .score-value { font-size: 1.75rem; font-weight: 700; }
+  .score-pct { font-size: 0.875rem; color: var(--muted); }
+  .score-meta { margin-top: 8px; text-align: center; }
+  .label-pill { display: inline-block; font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; color: #fff; }
+  .label-pill.ai { background: var(--ai); }
+  .label-pill.unsure { background: var(--unsure); }
+  .label-pill.human { background: var(--human); }
+  .legend {
+    display: flex; gap: 16px; justify-content: center; margin-bottom: 16px;
+    font-size: 0.75rem; color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .paragraphs h2 {
+    font-size: 0.875rem; font-weight: 600; margin-bottom: 12px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .para-card {
+    border-left: 4px solid; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px;
+    background: var(--bg-muted);
+  }
+  .para-card.ai { border-color: var(--ai); background: var(--ai-bg); }
+  .para-card.unsure { border-color: var(--unsure); background: var(--unsure-bg); }
+  .para-card.human { border-color: var(--human); background: var(--human-bg); }
+  .para-text { font-size: 0.95rem; color: var(--fg); margin-bottom: 8px; }
+  .para-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--muted); }
+  .copy-btn {
+    margin-top: 16px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 10px;
+    background: transparent; color: var(--fg); font-weight: 500; font-size: 0.875rem; align-self: flex-start; min-height: 44px;
+  }
+  .copy-btn:hover { background: var(--bg-muted); }
+  .footer {
+    margin-top: 24px; font-size: 0.75rem; color: var(--muted); text-align: center;
+    border-top: 1px solid var(--border); padding-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Login screen -->
+    <div id="login-screen" class="card">
+      <div class="logo">🔍 AI Slop Detector</div>
+      <p class="tagline">Sign in to check whether a web article was written by AI.</p>
+      <div id="login-error" class="error-banner"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-username">Username</label>
+          <input id="login-username" type="text" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" id="login-btn" class="btn-primary">Log in</button>
+      </form>
+    </div>
+
+    <!-- Checker screen -->
+    <div id="checker-screen" class="checker" style="display:none;">
+      <div class="header">
+        <div class="logo">🔍 AI Slop Detector</div>
+        <div class="toolbar">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌓</button>
+          <button id="logout-btn" class="btn-logout">Log out</button>
+        </div>
+      </div>
+
+      <div class="hero">
+        <p>Paste any article URL to see which paragraphs look AI-generated.</p>
+        <div class="chips">
+          <button class="chip" data-url="https://en.wikipedia.org/wiki/Artificial_intelligence">Wikipedia: AI</button>
+          <button class="chip" data-url="https://example.com/article">Example article</button>
+          <button class="chip" data-url="https://example.com">Example home</button>
+        </div>
+      </div>
+
+      <div class="url-row">
+        <input id="url-input" type="url" placeholder="https://example.com/article" required>
+        <button id="check-btn">Check article</button>
+      </div>
+
+      <div id="skeleton" class="skeleton" style="display:none;">Analyzing article&#8230;</div>
+
+      <div id="error-banner" class="error-banner"></div>
+
+      <div id="results" class="results" style="display:none;">
+        <div class="summary-card">
+          <div class="score-ring-wrap">
+            <svg class="score-svg" viewBox="0 0 36 36">
+              <circle class="track" cx="18" cy="18" r="14.5"/>
+              <circle id="score-progress" class="progress" cx="18" cy="18" r="14.5"/>
+            </svg>
+            <div class="score-text">
+              <div class="score-value" id="score-value">0%</div>
+              <div class="score-pct">overall score</div>
+            </div>
+          </div>
+          <div class="score-meta">
+            <span id="score-label" class="label-pill ai">likely AI</span>
+            <span style="margin-left:8px; font-size:0.875rem; color:var(--muted);" id="word-count"></span>
+          </div>
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--ai);"></div>Likely AI</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--unsure);"></div>Unsure</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--human);"></div>Likely human</div>
+        </div>
+
+        <div class="paragraphs">
+          <h2>Paragraphs</h2>
+          <div id="para-list"></div>
+        </div>
+
+        <button class="copy-btn" id="copy-btn">Copy summary</button>
+      </div>
+
+      <div class="footer">Detectors make mistakes — a score is a signal to look more closely, not proof that something was written by AI.</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const LOGIN = document.getElementById("login-screen");
+  const CHECKER = document.getElementById("checker-screen");
+  const THEME_KEY = "ai-slop-theme";
+  const LOGIN_ERROR = document.getElementById("login-error");
+  const LOGIN_BTN = document.getElementById("login-btn");
+  const LOGIN_FORM = document.getElementById("login-form");
+  const THEME_BTN = document.getElementById("theme-toggle");
+  const LOGOUT_BTN = document.getElementById("logout-btn");
+  const URL_INPUT = document.getElementById("url-input");
+  const CHECK_BTN = document.getElementById("check-btn");
+  const SKELETON = document.getElementById("skeleton");
+  const ERROR_BANNER = document.getElementById("error-banner");
+  const RESULTS = document.getElementById("results");
+  const SCORE_VALUE = document.getElementById("score-value");
+  const SCORE_PROGRESS = document.getElementById("score-progress");
+  const SCORE_LABEL = document.getElementById("score-label");
+  const WORD_COUNT = document.getElementById("word-count");
+  const PARA_LIST = document.getElementById("para-list");
+  const COPY_BTN = document.getElementById("copy-btn");
+
+  const API_BASE = (() => {
+    try {
+      const p = new URLSearchParams(location.search);
+      const v = p.get("api");
+      return v || "";
+    } catch (e) { return ""; }
+  })();
+
+  function api(path) { return API_BASE + path; }
+
+  // Theme
+  function getStoredTheme() {
+    try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
+  }
+  function setStoredTheme(v) {
+    try { localStorage.setItem(THEME_KEY, v); } catch (e) {}
+  }
+  function applyTheme(theme) {
+    if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    else document.documentElement.removeAttribute("data-theme");
+  }
+  const saved = getStoredTheme();
+  if (saved) applyTheme(saved);
+  else if (window.matchMedia("(prefers-color-scheme: dark)").matches) applyTheme("dark");
+  THEME_BTN.addEventListener("click", () => {
+    const dark = document.documentElement.hasAttribute("data-theme");
+    applyTheme(dark ? "" : "dark");
+    setStoredTheme(dark ? "" : "dark");
+  });
+
+  async function showScreen(name) {
+    LOGIN.style.display = name === "login" ? "" : "none";
+    CHECKER.style.display = name === "checker" ? "" : "none";
+  }
+
+  async function checkSession() {
+    try {
+      const r = await fetch(api("/me"), { credentials: "include" });
+      if (!r.ok) return false;
+      const d = await r.json();
+      return !!d.logged_in;
+    } catch (e) { return false; }
+  }
+
+  async function init() {
+    const loggedIn = await checkSession();
+    showScreen(loggedIn ? "checker" : "login");
+  }
+
+  // Login
+  LOGIN_FORM.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    LOGIN_ERROR.style.display = "none";
+    LOGIN_BTN.disabled = true;
+    const u = document.getElementById("login-username").value;
+    const p = document.getElementById("login-password").value;
+    try {
+      const r = await fetch(api("/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: u, password: p }),
+        credentials: "include",
+      });
+      const d = await r.json();
+      if (r.ok && d.ok) {
+        showScreen("checker");
+      } else {
+        LOGIN_ERROR.textContent = d.error || "Login failed";
+        LOGIN_ERROR.style.display = "block";
+      }
+    } catch (err) {
+      LOGIN_ERROR.textContent = "Login request failed.";
+      LOGIN_ERROR.style.display = "block";
+    } finally {
+      LOGIN_BTN.disabled = false;
+    }
+  });
+
+  LOGOUT_BTN.addEventListener("click", async () => {
+    await fetch(api("/logout"), { method: "POST", credentials: "include" });
+    showScreen("login");
+  });
+
+  // Helpers
+  function escapeHtml(t) {
+    const d = document.createElement("div"); d.textContent = t; return d.innerHTML;
+  }
+  function labelCls(label) { return (label || "unsure").replace(/\s+/g, "-").toLowerCase(); }
+  function labelForScore(s) {
+    if (s >= 0.7) return "likely AI";
+    if (s >= 0.4) return "unsure";
+    return "likely human";
+  }
+
+  function paraCard(text, label) {
+    const cls = labelCls(label);
+    const div = document.createElement("div");
+    div.className = "para-card " + cls;
+    div.innerHTML = `<div class="para-text">${escapeHtml(text)}</div><div class="para-meta"><span class="label-pill ${cls}">${escapeHtml(label)}</span></div>`;
+    return div;
+  }
+
+  function showError(msg, tryAgain) {
+    ERROR_BANNER.textContent = msg;
+    ERROR_BANNER.className = "error-banner shown";
+    ERROR_BANNER.style.display = "block";
+    if (tryAgain && !document.getElementById("try-again")) {
+      const btn = document.createElement("button");
+      btn.id = "try-again";
+      btn.textContent = "Try again";
+      btn.style = "margin-left:8px;padding:4px 10px;border:1px solid var(--ai);border-radius:6px;background:transparent;color:var(--ai);cursor:pointer;min-height:30px;";
+      btn.onclick = () => { ERROR_BANNER.style.display = "none"; btn.remove(); };
+      ERROR_BANNER.appendChild(btn);
+    }
+  }
+
+  async function runCheck() {
+    const url = URL_INPUT.value.trim();
+    if (!url) return;
+    RESULTS.style.display = "none";
+    ERROR_BANNER.style.display = "none";
+    SKELETON.style.display = "";
+    CHECK_BTN.disabled = true;
+    try {
+      const r = await fetch(api("/analyze"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+        credentials: "include",
+      });
+      if (r.status === 401) { showScreen("login"); return; }
+      if (!r.ok) { showError("Server error (" + r.status + ")"); return; }
+      const d = await r.json();
+      renderResults(d.summary, d.highlights);
+    } catch (err) {
+      showError("Network error. Try again.", true);
+    } finally {
+      SKELETON.style.display = "none";
+      CHECK_BTN.disabled = false;
+    }
+  }
+
+  function renderResults(summary, highlights) {
+    const m = summary.match(/Overall score:\s*([\d.]+)/);
+    const score = m ? parseFloat(m[1]) : null;
+    const pct = score == null ? 0 : Math.round(score * 100);
+    const label = score == null ? "Unsure" : labelForScore(score);
+
+    RESULTS.style.display = "";
+    SCORE_VALUE.textContent = score == null ? "&#8212;" : pct + "%";
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    SCORE_PROGRESS.style.transition = reduced ? "none" : "stroke-dashoffset 0.8s ease";
+    SCORE_PROGRESS.style.strokeDashoffset = score == null ? 283 : 283 * (1 - score);
+    SCORE_LABEL.textContent = label;
+    SCORE_LABEL.className = "label-pill " + labelCls(label);
+
+    const wcMatch = summary.match(/Word count:\s*(\d+)/);
+    WORD_COUNT.textContent = wcMatch ? wcMatch[1] + " words" : "";
+
+    PARA_LIST.innerHTML = "";
+    (highlights || []).forEach(([text, lbl]) => {
+      PARA_LIST.appendChild(paraCard(text, lbl));
+    });
+
+    COPY_BTN.onclick = () => {
+      navigator.clipboard.writeText(summary).catch(() => {});
+    };
+  }
+
+  CHECK_BTN.addEventListener("click", runCheck);
+  URL_INPUT.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runCheck(); } });
+
+  document.querySelectorAll(".chip").forEach((chip) => {
+    chip.addEventListener("click", () => { URL_INPUT.value = chip.getAttribute("data-url") || ""; });
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
