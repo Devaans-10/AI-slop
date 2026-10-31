@@ -6,6 +6,10 @@ adapter, and renders per-paragraph highlights plus an overall summary.
 
 Requires TINYFISH_API_KEY in the environment and a trained adapter at
 checkpoints/run1/adapter.
+
+Also exposes a FastAPI HTTP API at POST /analyze so a separate frontend
+(e.g. React on Netlify) can call the detector programmatically.
+Gradio UI is mounted at /ui.
 """
 
 from __future__ import annotations
@@ -13,6 +17,9 @@ from __future__ import annotations
 import os
 
 import gradio as gr
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from slop.fetch_article import fetch_article_text
 from slop.predict import analyze, load
@@ -73,6 +80,30 @@ def check_article(url: str):
     return summary, highlights
 
 
+# --- FastAPI API ---
+
+api = FastAPI()
+
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_URL", "*")],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class AnalyzeRequest(BaseModel):
+    url: str
+
+
+@api.post("/analyze")
+def analyze_endpoint(req: AnalyzeRequest):
+    summary, highlights = check_article(req.url)
+    return {"summary": summary, "highlights": highlights}
+
+
+# --- Gradio UI ---
+
 with gr.Blocks() as demo:
     gr.Markdown("# AI Slop Detector — Check a Web Article")
     gr.Markdown(
@@ -94,8 +125,16 @@ with gr.Blocks() as demo:
         outputs=[summary_output, highlights_output],
     )
 
+
+# Mount Gradio under /ui so FastAPI owns the root and the API lives at /analyze.
+app = gr.mount_gradio_app(api, demo, path="/ui")
+
+
 if __name__ == "__main__":
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=int(os.environ.get("PORT", 7860)),
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 7860)),
     )
